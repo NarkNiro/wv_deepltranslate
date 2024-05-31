@@ -18,8 +18,10 @@ use WebVision\WvDeepltranslate\Command\GlossaryListCommand;
 use WebVision\WvDeepltranslate\Command\GlossarySyncCommand;
 use WebVision\WvDeepltranslate\Controller\Backend\AjaxController;
 use WebVision\WvDeepltranslate\Controller\GlossarySyncController;
+use WebVision\WvDeepltranslate\Domain\Repository\GlossaryRepository;
 use WebVision\WvDeepltranslate\Event\Listener\GlossarySyncButtonProvider;
 use WebVision\WvDeepltranslate\Event\Listener\UsageToolBarEventListener;
+use WebVision\WvDeepltranslate\Factory\GlossaryFactory;
 use WebVision\WvDeepltranslate\Form\Item\SiteConfigSupportedLanguageItemsProcFunc;
 use WebVision\WvDeepltranslate\Form\User\HasFormalitySupport;
 use WebVision\WvDeepltranslate\Hooks\Glossary\UpdatedGlossaryEntryTermHook;
@@ -110,6 +112,12 @@ return function (ContainerConfigurator $containerConfigurator, ContainerBuilder 
         ->public();
     $services
         ->set(GlossarySyncController::class)
+        ->public();
+    $services
+        ->set(GlossaryRepository::class)
+        ->public();
+    $services
+        ->set(GlossaryFactory::class)
         ->public();
 
     $services->alias(ClientInterface::class, Client::class);
