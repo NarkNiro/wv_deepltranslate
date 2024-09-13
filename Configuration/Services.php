@@ -29,6 +29,7 @@ use WebVision\WvDeepltranslate\Hooks\TranslateHook;
 use WebVision\WvDeepltranslate\Hooks\UsageProcessAfterFinishHook;
 use WebVision\WvDeepltranslate\Service\DeeplGlossaryService;
 use WebVision\WvDeepltranslate\Service\DeeplService;
+use WebVision\WvDeepltranslate\Service\Glossary\LanguagePairsListProvider;
 use WebVision\WvDeepltranslate\Service\IconOverlayGenerator;
 use WebVision\WvDeepltranslate\Service\LanguageService;
 use WebVision\WvDeepltranslate\Service\UsageService;
@@ -92,6 +93,9 @@ return function (ContainerConfigurator $containerConfigurator, ContainerBuilder 
         ->arg('$cache', service('cache.wvdeepltranslate'));
     $services
         ->set(DeeplGlossaryService::class)
+        ->public();
+    $services
+        ->set(LanguagePairsListProvider::class)
         ->public()
         ->arg('$cache', service('cache.wvdeepltranslate'));
     $services

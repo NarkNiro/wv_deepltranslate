@@ -36,13 +36,19 @@ class GlossaryCleanupCommand extends Command
                 'all',
                 null,
                 InputOption::VALUE_NONE,
-                'Deleted all Glossaries',
+                'Deleted all glossaries exist in the deepl database',
             )
             ->addOption(
                 'notinsync',
                 null,
                 InputOption::VALUE_NONE,
-                'Deleted all Glossaries without synchronization information',
+                'Deleted all glossaries without synchronization information from local',
+            )
+            ->addOption(
+                'no-interactive',
+                null,
+                InputOption::VALUE_NONE,
+                'Skip interactive command handling'
             )
         ;
     }
@@ -52,15 +58,18 @@ class GlossaryCleanupCommand extends Command
         $this->io = new SymfonyStyle($input, $output);
         $this->io->title('Glossary cleanup');
 
-        $question = new ConfirmationQuestion(
-            'Do you will execute the glossary cleanup?',
-            false,
-            '/^(y|j)/i'
-        );
+        $noInteractive = $input->getOption('no-interactive');
+        if ($noInteractive !== null) {
+            $question = new ConfirmationQuestion(
+                'Do you will execute the glossary cleanup?',
+                false,
+                '/^(y|j)/i'
+            );
 
-        if (!$this->io->askQuestion($question)) {
-            $this->io->writeln('<warning>Delete not confirmed, process was cancel.</warning>');
-            return Command::SUCCESS;
+            if (!$this->io->askQuestion($question)) {
+                $this->io->writeln('<warning>Delete not confirmed, process was cancel.</warning>');
+                return Command::SUCCESS;
+            }
         }
 
         // Remove single glossary by deepl-id

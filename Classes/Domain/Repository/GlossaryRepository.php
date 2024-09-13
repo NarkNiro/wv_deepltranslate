@@ -81,8 +81,7 @@ final class GlossaryRepository
      */
     public function findAllGlossaries(): array
     {
-        $connection = GeneralUtility::makeInstance(ConnectionPool::class)
-            ->getConnectionForTable('pages');
+        $connection = $this->connectionPool->getConnectionForTable('pages');
 
         $identifiers = [
             'module' => 'glossary',
@@ -169,30 +168,33 @@ final class GlossaryRepository
 
         $result = $this->getGlossary($lowerSourceLang, $lowerTargetLang, $page['uid']);
 
-        if ($result === null) {
-            $insert = [
-                'glossary_name' => sprintf(
-                    '%s: %s => %s',
-                    $page['title'],
-                    $sourceLanguage,
-                    $targetLanguage
-                ),
-                'glossary_id' => '',
-                'glossary_lastsync' => 0,
-                'glossary_ready' => 0,
-                'source_lang' => $lowerSourceLang,
-                'target_lang' => $lowerTargetLang,
-                'pid' => $page['uid'],
-            ];
-            $connection = $this->connectionPool->getConnectionForTable('tx_wvdeepltranslate_glossary');
-            $connection->insert('tx_wvdeepltranslate_glossary', $insert);
-            $lastInsertId = $connection->lastInsertId('tx_wvdeepltranslate_glossary');
-            $insert['uid'] = $lastInsertId;
-            unset($insert['pid']);
-            return $insert;
+        if ($result !== null) {
+            return $result;
         }
 
-        return $result;
+        $insert = [
+            'glossary_name' => sprintf(
+                '%s: %s => %s',
+                $page['title'],
+                $sourceLanguage,
+                $targetLanguage
+            ),
+            'glossary_id' => '',
+            'glossary_lastsync' => 0,
+            'glossary_ready' => 0,
+            'source_lang' => $lowerSourceLang,
+            'target_lang' => $lowerTargetLang,
+            'pid' => $page['uid'],
+        ];
+
+        $connection = $this->connectionPool->getConnectionForTable('tx_wvdeepltranslate_glossary');
+        $connection->insert('tx_wvdeepltranslate_glossary', $insert);
+        $lastInsertId = $connection->lastInsertId('tx_wvdeepltranslate_glossary');
+
+        $insert['uid'] = $lastInsertId;
+        unset($insert['pid']);
+
+        return $insert;
     }
 
     public function removeGlossarySync(string $glossaryId): bool
@@ -223,8 +225,7 @@ final class GlossaryRepository
      */
     public function getGlossariesDeeplConnected(): array
     {
-        $queryBuilder = $this->connectionPool
-            ->getQueryBuilderForTable('tx_wvdeepltranslate_glossary');
+        $queryBuilder = $this->connectionPool->getQueryBuilderForTable('tx_wvdeepltranslate_glossary');
         $statement = $queryBuilder
             ->select('uid', 'glossary_id')
             ->from('tx_wvdeepltranslate_glossary')
@@ -278,8 +279,7 @@ final class GlossaryRepository
      */
     public function getLocalizedEntries(int $pageId, int $languageId): array
     {
-        $queryBuilder = $this->connectionPool
-            ->getQueryBuilderForTable('tx_wvdeepltranslate_glossaryentry');
+        $queryBuilder = $this->connectionPool->getQueryBuilderForTable('tx_wvdeepltranslate_glossaryentry');
         $statement = $queryBuilder
             ->select('uid', 'term', 'l10n_parent')
             ->from('tx_wvdeepltranslate_glossaryentry')
@@ -294,8 +294,13 @@ final class GlossaryRepository
                 )
             );
 
+        $rows = $statement->executeQuery()->fetchAllAssociative();
+        if ($rows === []) {
+            return [];
+        }
+
         $localizedEntries = [];
-        foreach ($statement->executeQuery()->fetchAllAssociative() as $localizedEntry) {
+        foreach ($rows as $localizedEntry) {
             $localizedEntries[$localizedEntry['l10n_parent']] = $localizedEntry;
         }
 
@@ -356,21 +361,20 @@ final class GlossaryRepository
      */
     private function getGlossariesInRootByCurrentPage(int $pageId): array
     {
-        $db = GeneralUtility::makeInstance(ConnectionPool::class)
-            ->getQueryBuilderForTable('pages');
+        $queryBuilder = $this->connectionPool->getQueryBuilderForTable('pages');
 
-        $result = $db
+        $result = $queryBuilder
             ->select('uid')
             ->from('pages')
             ->where(
-                $db->expr()->eq(
+                $queryBuilder->expr()->eq(
                     'doktype',
-                    $db->createNamedParameter(
+                    $queryBuilder->createNamedParameter(
                         PageRepository::DOKTYPE_SYSFOLDER,
                         Connection::PARAM_INT
                     )
                 ),
-                $db->expr()->eq('module', $db->createNamedParameter('glossary'))
+                $queryBuilder->expr()->eq('module', $queryBuilder->createNamedParameter('glossary'))
             )->executeQuery();
 
         $rows = $result->fetchAllAssociative();

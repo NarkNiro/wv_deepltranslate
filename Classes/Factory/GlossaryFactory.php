@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace WebVision\WvDeepltranslate\Factory;
 
+use DeepL\GlossaryEntries;
+use DeepL\GlossaryInfo;
 use Doctrine\DBAL\Driver\Exception;
 use TYPO3\CMS\Backend\Configuration\TranslationConfigurationProvider;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
@@ -11,8 +13,9 @@ use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Information\Typo3Version;
 use TYPO3\CMS\Core\Site\SiteFinder;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
+use WebVision\WvDeepltranslate\Domain\Model\Glossary;
 use WebVision\WvDeepltranslate\Domain\Repository\GlossaryRepository;
-use WebVision\WvDeepltranslate\Service\DeeplGlossaryService;
+use WebVision\WvDeepltranslate\Service\Glossary\LanguagePairsListProvider;
 
 /**
  * Factory object to create DeepL glossary information from TYPO3 Record/Structure
@@ -23,21 +26,19 @@ class GlossaryFactory
     private SiteFinder $siteFinder;
 
     private GlossaryRepository $glossaryRepository;
-
-    private DeeplGlossaryService $deeplGlossaryService;
+    private LanguagePairsListProvider $languagePairsListGenerator;
 
     public function __construct(
         SiteFinder $siteFinder,
         GlossaryRepository $glossaryRepository,
-        DeeplGlossaryService $deeplGlossaryService
+        LanguagePairsListProvider $languagePairsListGenerator
     ) {
         $this->siteFinder = $siteFinder;
         $this->glossaryRepository = $glossaryRepository;
-        $this->deeplGlossaryService = $deeplGlossaryService;
+        $this->languagePairsListGenerator = $languagePairsListGenerator;
     }
 
     /**
-     * @param int $pageId
      * @return array<int, array{
      *     glossary_name: string,
      *     uid: int,
@@ -53,19 +54,15 @@ class GlossaryFactory
      */
     public function createGlossaryInformation(int $pageId): array
     {
-        $glossaries = [];
-        $localizationArray = [];
-
         $page = BackendUtility::getRecord('pages', $pageId, '*');
         if ($page['module'] !== 'glossary') {
-            throw new \RuntimeException('', 1716556217634);
+            throw new \RuntimeException('Glossary module not found for the given page ID', 1716556217634);
         }
 
-        $availableLanguagePairs = $this->deeplGlossaryService->getPossibleGlossaryLanguageConfig();
+        $localizationArray = [];
+
         $sourceLangIsoCode = $this->getDefaultLanguageCode($pageId);
-
         $entries = $this->glossaryRepository->getOriginalEntries($pageId);
-
         $localizationArray[$sourceLangIsoCode] = $entries;
 
         $localizationLanguageIds = $this->getAvailableLocalizations($pageId);
@@ -76,13 +73,17 @@ class GlossaryFactory
             $localizationArray[$targetLanguageIsoCode] = $localizedEntries;
         }
 
-        foreach ($availableLanguagePairs as $sourceLang => $availableTargets) {
+        $glossaries = [];
+        $availableLanguagePairs = $this->languagePairsListGenerator->getPossibleGlossaryLanguageConfig();
+
+        foreach ($availableLanguagePairs as $availableSourceLanguage => $availableTargetLanguages) {
             // no entry to possible source in the current page
-            if (!isset($localizationArray[$sourceLang])) {
+            if (!isset($localizationArray[$availableSourceLanguage])) {
                 continue;
             }
 
-            foreach ($availableTargets as $targetLang) {
+            foreach ($availableTargetLanguages as $targetLang) {
+
                 // target isn't configured in the current page
                 if (!isset($localizationArray[$targetLang])) {
                     continue;
@@ -94,15 +95,15 @@ class GlossaryFactory
                 }
 
                 $glossaryInformation = $this->glossaryRepository->getGlossaryBySourceAndTargetForSync(
-                    $sourceLang,
+                    $availableSourceLanguage,
                     $targetLang,
                     $page
                 );
-                $glossaryInformation['source_lang'] = $sourceLang;
+                $glossaryInformation['source_lang'] = $availableSourceLanguage;
                 $glossaryInformation['target_lang'] = $targetLang;
 
                 $entries = [];
-                foreach ($localizationArray[$sourceLang] as $entryId => $sourceEntry) {
+                foreach ($localizationArray[$availableSourceLanguage] as $entryId => $sourceEntry) {
                     // no source target pair, next
                     if (!isset($localizationArray[$targetLang][$entryId])) {
                         continue;
@@ -136,7 +137,37 @@ class GlossaryFactory
         return $glossaries;
     }
 
+    private function createGlossary(string $sourceLanguage, string $targetLanguage, int $pageId): Glossary
+    {
+        return Glossary::createFromTableInformation([]);
+    }
+
+    private function createEntryListForGlossary(): array
+    {
+        // Select all glossary entries for current glossary
+    }
+
+    public function transformTypo3GlossaryObjectToDeeplObject(Glossary $glossary): GlossaryInfo
+    {
+        return new GlossaryInfo(
+            $glossary->getIdentifier(),
+            $glossary->getName(),
+            $glossary->isReady(),
+            $glossary->getSourceLanguage(),
+            $glossary->getTargetLanguage(),
+            $glossary->getLastSync(),
+            $glossary->getEntriesCount()
+        );
+    }
+
+    public function transformTypo3GlossaryEntriesToDeeplObject(Glossary $glossary): GlossaryEntries
+    {
+        return GlossaryEntries::fromEntries($glossary->getEntries());
+    }
+
     /**
+     * ToDo: maybe move the function to @see \WebVision\WvDeepltranslate\Service\LanguageService
+     *
      * @return array<int, mixed>
      */
     private function getAvailableLocalizations(int $pageId): array
@@ -157,6 +188,9 @@ class GlossaryFactory
         return $availableTranslations;
     }
 
+    /**
+     * ToDo: maybe move the function to @see \WebVision\WvDeepltranslate\Service\LanguageService
+     */
     protected function getTargetLanguageCode(int $pageId, int $languageId): string
     {
         $site = $this->siteFinder->getSiteByPageId($pageId);
@@ -170,6 +204,9 @@ class GlossaryFactory
         return $targetLangIsoCode;
     }
 
+    /**
+     * ToDo: maybe move the function to @see \WebVision\WvDeepltranslate\Service\LanguageService
+     */
     private function getDefaultLanguageCode(int $pageId): string
     {
         $site = $this->siteFinder->getSiteByPageId($pageId);
@@ -181,4 +218,5 @@ class GlossaryFactory
         }
         return $sourceLangIsoCode;
     }
+
 }

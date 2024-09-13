@@ -4,44 +4,32 @@ declare(strict_types=1);
 
 namespace WebVision\WvDeepltranslate\Service;
 
-use DateTime;
 use DeepL\GlossaryEntries;
 use DeepL\GlossaryInfo;
-use DeepL\GlossaryLanguagePair;
 use Doctrine\DBAL\Driver\Exception;
-use TYPO3\CMS\Core\Cache\Frontend\FrontendInterface;
 use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use WebVision\WvDeepltranslate\ClientInterface;
 use WebVision\WvDeepltranslate\Domain\Repository\GlossaryRepository;
 use WebVision\WvDeepltranslate\Exception\FailedToCreateGlossaryException;
 use WebVision\WvDeepltranslate\Exception\GlossaryEntriesNotExistException;
+use WebVision\WvDeepltranslate\Factory\GlossaryFactory;
 
 final class DeeplGlossaryService
 {
     private ClientInterface $client;
 
-    private FrontendInterface $cache;
+    private GlossaryFactory $glossaryFactory;
 
     protected GlossaryRepository $glossaryRepository;
 
     public function __construct(
-        FrontendInterface $cache,
         ClientInterface $client,
-        GlossaryRepository $glossaryRepository
+        GlossaryRepository $glossaryRepository,
+        GlossaryFactory $glossaryFactory
     ) {
-        $this->cache = $cache;
         $this->client = $client;
         $this->glossaryRepository = $glossaryRepository;
-    }
-
-    /**
-     * Calls the glossary-Endpoint and return Json-response as an array
-     *
-     * @return GlossaryLanguagePair[]
-     */
-    public function listLanguagePairs(): array
-    {
-        return $this->client->getGlossaryLanguagePairs();
+        $this->glossaryFactory = $glossaryFactory;
     }
 
     /**
@@ -103,33 +91,15 @@ final class DeeplGlossaryService
         return $this->client->getGlossaryEntries($glossaryId);
     }
 
-    public function getPossibleGlossaryLanguageConfig(): array
-    {
-        $cacheIdentifier = 'wv-deepl-glossary-pairs';
-        if (($pairMappingArray = $this->cache->get($cacheIdentifier)) !== false) {
-            return $pairMappingArray;
-        }
-
-        $possiblePairs = $this->listLanguagePairs();
-
-        $pairMappingArray = [];
-        foreach ($possiblePairs as $possiblePair) {
-            $pairMappingArray[$possiblePair->sourceLang][] = $possiblePair->targetLang;
-        }
-
-        $this->cache->set($cacheIdentifier, $pairMappingArray);
-
-        return $pairMappingArray;
-    }
-
     /**
      * @throws Exception
      * @throws SiteNotFoundException
      * @throws \Doctrine\DBAL\Exception
      */
-    public function syncGlossaries(int $uid): void
+    public function syncGlossaries(int $glossaryModulePageId): void
     {
-        $glossaries = $this->glossaryRepository->getGlossaryInformationForSync($uid);
+        $glossaries = $this->glossaryFactory->createGlossaryInformation($glossaryModulePageId);
+
         if (empty($glossaries)) {
             throw new FailedToCreateGlossaryException(
                 'Glossary can not created, the TYPO3 information are invalide.',
@@ -138,7 +108,12 @@ final class DeeplGlossaryService
         }
 
         foreach ($glossaries as $glossaryInformation) {
-            if ($glossaryInformation['glossary_id'] !== '') {
+            // Remove are exist glossary before upgrade the information
+            // will only be removed when this glossary status is ready
+            if (
+                $glossaryInformation['glossary_id'] !== ''
+                && $glossaryInformation['glossary_ready'] === 1
+            ) {
                 $this->deleteGlossary($glossaryInformation['glossary_id']);
             }
 
@@ -149,22 +124,14 @@ final class DeeplGlossaryService
                     $glossaryInformation['source_lang'],
                     $glossaryInformation['target_lang']
                 );
-            } catch (GlossaryEntriesNotExistException $exception) {
-                $glossary = new GlossaryInfo(
-                    '',
-                    '',
-                    false,
-                    '',
-                    '',
-                    new DateTime(),
-                    0
-                );
-            }
 
-            $this->glossaryRepository->updateLocalGlossary(
-                $glossary,
-                (int)$glossaryInformation['uid']
-            );
+                $this->glossaryRepository->updateLocalGlossary(
+                    $glossary,
+                    (int)$glossaryInformation['uid']
+                );
+            } catch (GlossaryEntriesNotExistException $exception) {
+                // ToDo: Write log error entry
+            }
         }
     }
 }

@@ -17,20 +17,24 @@ use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
         ((new \TYPO3\CMS\Core\Information\Typo3Version())->getMajorVersion() >= 12 ? 'value' : 1) => 'glossary',
         ((new \TYPO3\CMS\Core\Information\Typo3Version())->getMajorVersion() >= 12 ? 'icon' : 2) => 'apps-pagetree-folder-contains-glossary',
     ];
-    $GLOBALS['TCA']['pages']['ctrl']['typeicon_classes']['contains-glossary']
-        = 'apps-pagetree-folder-contains-glossary';
+    $GLOBALS['TCA']['pages']['ctrl']['typeicon_classes']['contains-glossary'] = 'apps-pagetree-folder-contains-glossary';
 
     $columns = [
         'tx_wvdeepltranslate_content_not_checked' => [
             'exclude' => 0,
             'l10n_display' => 'hideDiff',
-            'displayCond' => 'FIELD:sys_language_uid:>:0',
+            'displayCond' => [
+                'AND' => [
+                    'FIELD:sys_language_uid:>:0',
+                    'FIELD:module:!=:glossary',
+                ],
+            ],
             'label' => $ll('pages.tx_wvdeepltranslate_content_not_checked'),
             'config' => [
                 'type' => 'check',
                 'items' => [
                     [
-                        ((new \TYPO3\CMS\Core\Information\Typo3Version())->getMajorVersion() >= 12 ? 'label' : 0) => $ll('traslated_with_deepl'),
+                        ((new \TYPO3\CMS\Core\Information\Typo3Version())->getMajorVersion() >= 12 ? 'label' : 0) => '',
                     ],
                 ],
             ],
@@ -50,36 +54,36 @@ use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
                 'foreign_field' => 'pid',
             ],
         ],
+        'tx_wvdeepltranslate_translated_time' => [
+            'exclude' => 0,
+            'l10n_display' => 'hideDiff',
+            'displayCond' => [
+                'AND' => [
+                    'FIELD:sys_language_uid:>:0',
+                    'FIELD:module:!=:glossary',
+                ],
+            ],
+            'label' => $ll('pages.tx_wvdeepltranslate_translated_time'),
+            'config' => [],
+        ],
     ];
 
-    $columns['tx_wvdeepltranslate_translated_time'] = [
-        'exclude' => 0,
-        'l10n_display' => 'hideDiff',
-        'displayCond' => 'FIELD:sys_language_uid:>:0',
-        'label' => $ll('pages.tx_wvdeepltranslate_translated_time'),
-        'config' => [
-            'type' => 'input',
-            'renderType' => 'inputDateTime',
-            'eval' => 'datetime',
-            'readOnly' => true,
-            'default' => 0,
-        ],
+    $columns['tx_wvdeepltranslate_translated_time']['config'] = [
+        'type' => 'input',
+        'renderType' => 'inputDateTime',
+        'eval' => 'datetime',
+        'readOnly' => true,
+        'default' => 0,
     ];
     if ((new \TYPO3\CMS\Core\Information\Typo3Version())->getMajorVersion() >= 12) {
         // 4.   https://review.typo3.org/c/Packages/TYPO3.CMS/+/74027
         //      https://docs.typo3.org/c/typo3/cms-core/main/en-us/Changelog/12.0/Feature-97232-NewTCATypeDatetime.html
         //      https://docs.typo3.org/c/typo3/cms-core/main/en-us/Changelog/12.0/Breaking-97358-RemovedEvalintFromTCATypeDatetime.html
-        $columns['tx_wvdeepltranslate_translated_time'] = [
-            'exclude' => 0,
-            'l10n_display' => 'hideDiff',
-            'displayCond' => 'FIELD:sys_language_uid:>:0',
-            'label' => $ll('pages.tx_wvdeepltranslate_translated_time'),
-            'config' => [
-                'type' => 'datetime',
-                'format' => 'datetime',
-                'readOnly' => true,
-                'default' => 0,
-            ],
+        $columns['tx_wvdeepltranslate_translated_time']['config'] = [
+            'type' => 'datetime',
+            'format' => 'datetime',
+            'readOnly' => true,
+            'default' => 0,
         ];
     }
 

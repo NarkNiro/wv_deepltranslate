@@ -19,6 +19,7 @@ use TYPO3\CMS\Extbase\Utility\LocalizationUtility;
 use WebVision\WvDeepltranslate\Access\AllowedGlossarySyncAccess;
 use WebVision\WvDeepltranslate\Access\AllowedTranslateAccess;
 use WebVision\WvDeepltranslate\Service\DeeplGlossaryService;
+use WebVision\WvDeepltranslate\Service\Glossary\LanguagePairsListProvider;
 use WebVision\WvDeepltranslate\Utility\DeeplBackendUtility;
 
 final class DeeplRecordListController extends RecordListController
@@ -88,8 +89,10 @@ final class DeeplRecordListController extends RecordListController
             return '';
         }
 
-        $glossaryService = GeneralUtility::makeInstance(DeeplGlossaryService::class);
-        $possiblePairs = $glossaryService->getPossibleGlossaryLanguageConfig();
+        /** @var LanguagePairsListProvider $languagePairsListProvider */
+        $languagePairsListProvider = GeneralUtility::makeInstance(LanguagePairsListProvider::class);
+        $possiblePairs = $languagePairsListProvider->getPossibleGlossaryLanguageConfig();
+
         $site = GeneralUtility::makeInstance(SiteFinder::class)
             ->getSiteByPageId($this->id);
         $defaultLanguageIsoCode = $site->getDefaultLanguage()->getLocale()->getLanguageCode();
