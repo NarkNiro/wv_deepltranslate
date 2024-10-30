@@ -9,6 +9,7 @@ use DeepL\GlossaryInfo;
 use Doctrine\DBAL\Driver\Exception;
 use TYPO3\CMS\Backend\Configuration\TranslationConfigurationProvider;
 use TYPO3\CMS\Backend\Utility\BackendUtility;
+use TYPO3\CMS\Core\Domain\Repository\PageRepository;
 use TYPO3\CMS\Core\Exception\SiteNotFoundException;
 use TYPO3\CMS\Core\Information\Typo3Version;
 use TYPO3\CMS\Core\Site\SiteFinder;
@@ -55,7 +56,7 @@ class GlossaryFactory
     public function createGlossaryInformation(int $pageId): array
     {
         $page = BackendUtility::getRecord('pages', $pageId, '*');
-        if ($page['module'] !== 'glossary') {
+        if ($this->pageRecordIsValidToUseAsGlossary($page) === false) {
             throw new \RuntimeException('Glossary module not found for the given page ID', 1716556217634);
         }
 
@@ -135,6 +136,11 @@ class GlossaryFactory
         }
 
         return $glossaries;
+    }
+
+    private function pageRecordIsValidToUseAsGlossary(array $pageRecord): bool
+    {
+        return $pageRecord['module'] === 'glossary' && $pageRecord['doktype'] === PageRepository::DOKTYPE_SYSFOLDER;
     }
 
     private function createGlossary(string $sourceLanguage, string $targetLanguage, int $pageId): Glossary
